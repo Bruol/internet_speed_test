@@ -1,0 +1,83 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_INIT_USERNAME:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_INIT_PASSWORD:-change-me-in-env}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_INIT_ORG:-my-org}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_INIT_BUCKET:-speedtest}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN:-change-me-token}
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - speedtest-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - mkdir -p /var/lib/grafana/dashboards && sed "s|__INFLUXDB_BUCKET__|$${INFLUXDB_BUCKET}|g" /etc/grafana/provisioning/dashboards/speedtest.json.tpl > /var/lib/grafana/dashboards/speedtest.json && exec /run.sh
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG:-my-org}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET:-speedtest}
+      INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN:-change-me-token}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - speedtest-net
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+  speedtest-monitor:
+    build: .
+    container_name: speedtest-monitor
+    restart: unless-stopped
+    environment:
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN:-change-me-token}
+      INFLUXDB_ORG: ${INFLUXDB_INIT_ORG:-my-org}
+      INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET:-speedtest}
+      SPEEDTEST_INTERVAL_SECONDS: ${SPEEDTEST_INTERVAL_SECONDS:-300}
+      SPEEDTEST_ACCEPT_LICENSE: ${SPEEDTEST_ACCEPT_LICENSE:-true}
+      SPEEDTEST_ACCEPT_GDPR: ${SPEEDTEST_ACCEPT_GDPR:-true}
+    networks:
+      - speedtest-net
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+networks:
+  speedtest-net:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  grafana_data:

@@ -1,0 +1,14 @@
+{
+  "name": "internet-speed-test-monitor",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "bun run speedtest.ts",
+    "dev": "bun run speedtest.ts"
+  },
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.33.2"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}
