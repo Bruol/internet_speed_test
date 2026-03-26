@@ -5,7 +5,7 @@
   "tags": ["speedtest", "influxdb"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": {
     "from": "now-24h",
@@ -48,7 +48,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"download_mbps\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"download\")",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_download_mbps\" or r._field == \"wifi_download_mbps\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ]
@@ -89,7 +89,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"upload_mbps\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"upload\")",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_upload_mbps\" or r._field == \"wifi_upload_mbps\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ]
@@ -130,7 +130,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"latency\")",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_latency_ms\" or r._field == \"wifi_latency_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ]
@@ -138,7 +138,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Latest Download",
+      "title": "Latest LAN Download",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb"
@@ -169,7 +169,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"download_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_download_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
           "refId": "A"
         }
       ]
@@ -177,7 +177,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Latest Upload",
+      "title": "Latest Wi-Fi Download",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb"
@@ -208,7 +208,7 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"upload_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"wifi_download_mbps\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
           "refId": "A"
         }
       ]
@@ -216,7 +216,7 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Latest Latency",
+      "title": "Latest LAN Latency",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb"
@@ -247,48 +247,46 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_latency_ms\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
           "refId": "A"
         }
       ]
     },
     {
       "id": 7,
-      "type": "timeseries",
-      "title": "Jitter",
+      "type": "stat",
+      "title": "Latest Wi-Fi Latency",
       "datasource": {
         "type": "influxdb",
         "uid": "influxdb"
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 12
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms",
-          "color": {
-            "mode": "palette-classic"
-          }
+          "unit": "ms"
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "textMode": "auto"
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"jitter_ms\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"jitter\")",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"wifi_latency_ms\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)",
           "refId": "A"
         }
       ]
@@ -303,9 +301,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
+        "w": 8,
+        "x": 16,
+        "y": 12
       },
       "fieldConfig": {
         "defaults": {
@@ -329,7 +327,112 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"packet_loss_pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"packet_loss\")",
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_packet_loss_pct\" or r._field == \"wifi_packet_loss_pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Recent Tests",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lan_download_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/sec"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wifi_download_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/sec"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lan_upload_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/sec"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wifi_upload_mbps"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbits/sec"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lan_latency_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "wifi_latency_ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_download_mbps\" or r._field == \"lan_upload_mbps\" or r._field == \"lan_latency_ms\" or r._field == \"lan_jitter_ms\" or r._field == \"lan_packet_loss_pct\" or r._field == \"lan_interface\" or r._field == \"lan_server_name\" or r._field == \"lan_server_location\" or r._field == \"lan_server_country\" or r._field == \"wifi_download_mbps\" or r._field == \"wifi_upload_mbps\" or r._field == \"wifi_latency_ms\" or r._field == \"wifi_jitter_ms\" or r._field == \"wifi_packet_loss_pct\" or r._field == \"wifi_interface\" or r._field == \"wifi_server_name\" or r._field == \"wifi_server_location\" or r._field == \"wifi_server_country\")\n  |> group(columns: [])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"lan_interface\", \"lan_download_mbps\", \"lan_upload_mbps\", \"lan_latency_ms\", \"lan_server_name\", \"wifi_interface\", \"wifi_download_mbps\", \"wifi_upload_mbps\", \"wifi_latency_ms\", \"wifi_server_name\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 20)",
           "refId": "A"
         }
       ]
