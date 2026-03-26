@@ -3,6 +3,8 @@ import { InfluxDB, Point } from "@influxdata/influxdb-client";
 const MEASUREMENT = "internet_speed";
 const DEFAULT_INTERVAL_SECONDS = 300;
 
+type PathName = "lan" | "wifi";
+
 interface Config {
   influxUrl: string;
   influxToken: string;
@@ -11,6 +13,8 @@ interface Config {
   intervalSeconds: number;
   acceptLicense: boolean;
   acceptGdpr: boolean;
+  lanInterface: string;
+  wifiInterface: string;
 }
 
 interface OoklaSpeedtestResult {
@@ -38,6 +42,13 @@ interface OoklaSpeedtestResult {
   };
 }
 
+interface PathResult {
+  path: PathName;
+  interfaceName: string;
+  result?: OoklaSpeedtestResult;
+  error?: string;
+}
+
 function log(message: string, error?: unknown) {
   const prefix = `[${new Date().toISOString()}]`;
   if (error) {
@@ -52,8 +63,7 @@ function parseBoolean(value: string | undefined, fallback: boolean) {
     return fallback;
   }
 
-  const normalized = value.trim().toLowerCase();
-  return ["1", "true", "yes", "on"].includes(normalized);
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
 function parseIntervalSeconds(value: string | undefined) {
@@ -83,10 +93,12 @@ function loadConfig(): Config {
     intervalSeconds: parseIntervalSeconds(Bun.env.SPEEDTEST_INTERVAL_SECONDS),
     acceptLicense: parseBoolean(Bun.env.SPEEDTEST_ACCEPT_LICENSE, true),
     acceptGdpr: parseBoolean(Bun.env.SPEEDTEST_ACCEPT_GDPR, true),
+    lanInterface: requireEnv("LAN_INTERFACE"),
+    wifiInterface: requireEnv("WIFI_INTERFACE"),
   };
 }
 
-function buildSpeedtestCommand(config: Config) {
+function buildSpeedtestCommand(config: Config, interfaceName: string) {
   const command = ["speedtest"];
 
   if (config.acceptLicense) {
@@ -97,13 +109,13 @@ function buildSpeedtestCommand(config: Config) {
     command.push("--accept-gdpr");
   }
 
-  command.push("--format=json");
+  command.push("--interface", interfaceName, "--format=json");
   return command;
 }
 
-async function runSpeedtest(config: Config): Promise<OoklaSpeedtestResult> {
+async function runSpeedtest(config: Config, path: PathName, interfaceName: string): Promise<PathResult> {
   const proc = Bun.spawn({
-    cmd: buildSpeedtestCommand(config),
+    cmd: buildSpeedtestCommand(config, interfaceName),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -115,13 +127,25 @@ async function runSpeedtest(config: Config): Promise<OoklaSpeedtestResult> {
   ]);
 
   if (exitCode !== 0) {
-    throw new Error(`speedtest exited with code ${exitCode}: ${stderr.trim() || "no stderr output"}`);
+    return {
+      path,
+      interfaceName,
+      error: `speedtest exited with code ${exitCode}: ${stderr.trim() || "no stderr output"}`,
+    };
   }
 
   try {
-    return JSON.parse(stdout) as OoklaSpeedtestResult;
+    return {
+      path,
+      interfaceName,
+      result: JSON.parse(stdout) as OoklaSpeedtestResult,
+    };
   } catch (error) {
-    throw new Error(`Failed to parse speedtest JSON output: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      path,
+      interfaceName,
+      error: `Failed to parse speedtest JSON output: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -133,64 +157,50 @@ function bytesPerSecondToMbps(value: number | undefined) {
   return (value * 8) / 1_000_000;
 }
 
-function parseTimestamp(value: string | undefined) {
-  if (!value) {
-    return new Date();
+function addStringField(point: Point, fieldName: string, value: string | undefined) {
+  if (value) {
+    point.stringField(fieldName, value);
   }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return new Date();
-  }
-
-  return parsed;
 }
 
-function mapResultToPoint(result: OoklaSpeedtestResult, config: Config) {
-  const downloadMbps = bytesPerSecondToMbps(result.download?.bandwidth);
-  const uploadMbps = bytesPerSecondToMbps(result.upload?.bandwidth);
-  const latencyMs = result.ping?.latency;
+function addFloatField(point: Point, fieldName: string, value: number | undefined) {
+  if (value !== undefined) {
+    point.floatField(fieldName, value);
+  }
+}
 
-  if (downloadMbps === undefined || uploadMbps === undefined || latencyMs === undefined) {
-    throw new Error("Speedtest result is missing required download, upload, or latency values");
+function addPathResultFields(point: Point, path: PathName, interfaceName: string, result?: OoklaSpeedtestResult, error?: string) {
+  addStringField(point, `${path}_interface`, interfaceName);
+
+  if (error) {
+    addStringField(point, `${path}_error`, error);
+    return;
   }
 
-  const point = new Point(MEASUREMENT)
-    .floatField("download_mbps", downloadMbps)
-    .floatField("upload_mbps", uploadMbps)
-    .floatField("latency_ms", latencyMs)
-    .timestamp(parseTimestamp(result.timestamp));
-
-  if (result.ping?.jitter !== undefined) {
-    point.floatField("jitter_ms", result.ping.jitter);
+  if (!result) {
+    addStringField(point, `${path}_error`, "No result returned");
+    return;
   }
 
-  if (result.packetLoss !== undefined) {
-    point.floatField("packet_loss_pct", result.packetLoss);
-  }
+  addFloatField(point, `${path}_download_mbps`, bytesPerSecondToMbps(result.download?.bandwidth));
+  addFloatField(point, `${path}_upload_mbps`, bytesPerSecondToMbps(result.upload?.bandwidth));
+  addFloatField(point, `${path}_latency_ms`, result.ping?.latency);
+  addFloatField(point, `${path}_jitter_ms`, result.ping?.jitter);
+  addFloatField(point, `${path}_packet_loss_pct`, result.packetLoss);
 
-  if (result.server?.id !== undefined) {
-    point.stringField("server_id", String(result.server.id));
-  }
+  addStringField(point, `${path}_server_id`, result.server?.id !== undefined ? String(result.server.id) : undefined);
+  addStringField(point, `${path}_server_name`, result.server?.name);
+  addStringField(point, `${path}_server_location`, result.server?.location);
+  addStringField(point, `${path}_server_country`, result.server?.country);
+  addStringField(point, `${path}_isp`, result.isp);
+  addStringField(point, `${path}_external_ip`, result.interface?.externalIp);
+}
 
-  if (result.server?.name) {
-    point.stringField("server_name", result.server.name);
-  }
+function mapResultsToPoint(results: PathResult[]) {
+  const point = new Point(MEASUREMENT).timestamp(new Date());
 
-  if (result.server?.location) {
-    point.stringField("server_location", result.server.location);
-  }
-
-  if (result.server?.country) {
-    point.stringField("server_country", result.server.country);
-  }
-
-  if (result.isp) {
-    point.stringField("isp", result.isp);
-  }
-
-  if (result.interface?.externalIp) {
-    point.stringField("interface_external_ip", result.interface.externalIp);
+  for (const entry of results) {
+    addPathResultFields(point, entry.path, entry.interfaceName, entry.result, entry.error);
   }
 
   return point;
@@ -208,24 +218,48 @@ async function writeResult(point: Point, config: Config) {
   }
 }
 
+function formatSummary(pathResult: PathResult) {
+  if (pathResult.error) {
+    return `${pathResult.path}(${pathResult.interfaceName}) failed`;
+  }
+
+  const downloadMbps = bytesPerSecondToMbps(pathResult.result?.download?.bandwidth);
+  const uploadMbps = bytesPerSecondToMbps(pathResult.result?.upload?.bandwidth);
+  const latencyMs = pathResult.result?.ping?.latency;
+
+  return (
+    `${pathResult.path}(${pathResult.interfaceName}) ` +
+    `download=${downloadMbps?.toFixed(2) ?? "n/a"} Mbps, ` +
+    `upload=${uploadMbps?.toFixed(2) ?? "n/a"} Mbps, ` +
+    `latency=${latencyMs?.toFixed(2) ?? "n/a"} ms`
+  );
+}
+
 async function runOnce(config: Config) {
-  log("Running speed test");
+  log(`Running speed tests on ${config.lanInterface} and ${config.wifiInterface}`);
+
+  const results = await Promise.all([
+    runSpeedtest(config, "lan", config.lanInterface),
+    runSpeedtest(config, "wifi", config.wifiInterface),
+  ]);
+
+  for (const result of results) {
+    if (result.error) {
+      log(`${result.path} test failed on ${result.interfaceName}: ${result.error}`);
+    }
+  }
+
+  if (results.every((result) => !result.result)) {
+    log("Skipping write because both speed tests failed");
+    return;
+  }
 
   try {
-    const result = await runSpeedtest(config);
-    const downloadMbps = bytesPerSecondToMbps(result.download?.bandwidth);
-    const uploadMbps = bytesPerSecondToMbps(result.upload?.bandwidth);
-    const latencyMs = result.ping?.latency;
-    const point = mapResultToPoint(result, config);
+    const point = mapResultsToPoint(results);
     await writeResult(point, config);
-
-    log(
-      `Saved result: download=${downloadMbps?.toFixed(2) ?? "n/a"} Mbps, ` +
-        `upload=${uploadMbps?.toFixed(2) ?? "n/a"} Mbps, ` +
-        `latency=${latencyMs?.toFixed(2) ?? "n/a"} ms`,
-    );
+    log(`Saved result: ${results.map(formatSummary).join(" | ")}`);
   } catch (error) {
-    log("Speed test cycle failed", error);
+    log("Failed to write combined speed test result", error);
   }
 }
 

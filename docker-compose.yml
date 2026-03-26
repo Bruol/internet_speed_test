@@ -60,16 +60,17 @@ services:
     build: .
     container_name: speedtest-monitor
     restart: unless-stopped
+    network_mode: host
     environment:
-      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_URL: http://127.0.0.1:8086
       INFLUXDB_TOKEN: ${INFLUXDB_INIT_ADMIN_TOKEN:-change-me-token}
       INFLUXDB_ORG: ${INFLUXDB_INIT_ORG:-my-org}
       INFLUXDB_BUCKET: ${INFLUXDB_INIT_BUCKET:-speedtest}
       SPEEDTEST_INTERVAL_SECONDS: ${SPEEDTEST_INTERVAL_SECONDS:-300}
       SPEEDTEST_ACCEPT_LICENSE: ${SPEEDTEST_ACCEPT_LICENSE:-true}
       SPEEDTEST_ACCEPT_GDPR: ${SPEEDTEST_ACCEPT_GDPR:-true}
-    networks:
-      - speedtest-net
+      LAN_INTERFACE: ${LAN_INTERFACE:-eth0}
+      WIFI_INTERFACE: ${WIFI_INTERFACE:-eth1}
     depends_on:
       influxdb:
         condition: service_healthy
