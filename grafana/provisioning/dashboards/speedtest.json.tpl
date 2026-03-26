@@ -5,7 +5,7 @@
   "tags": ["speedtest", "influxdb"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "refresh": "30s",
   "time": {
     "from": "now-24h",
@@ -328,111 +328,6 @@
       "targets": [
         {
           "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_packet_loss_pct\" or r._field == \"wifi_packet_loss_pct\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "type": "table",
-      "title": "Recent Tests",
-      "datasource": {
-        "type": "influxdb",
-        "uid": "influxdb"
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "lan_download_mbps"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbits/sec"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "wifi_download_mbps"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbits/sec"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "lan_upload_mbps"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbits/sec"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "wifi_upload_mbps"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbits/sec"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "lan_latency_ms"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ms"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "wifi_latency_ms"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ms"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "show": false
-        },
-        "showHeader": true
-      },
-      "targets": [
-        {
-          "query": "from(bucket: \"__INFLUXDB_BUCKET__\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"internet_speed\")\n  |> filter(fn: (r) => r._field == \"lan_download_mbps\" or r._field == \"lan_upload_mbps\" or r._field == \"lan_latency_ms\" or r._field == \"lan_jitter_ms\" or r._field == \"lan_packet_loss_pct\" or r._field == \"lan_interface\" or r._field == \"lan_server_name\" or r._field == \"lan_server_location\" or r._field == \"lan_server_country\" or r._field == \"wifi_download_mbps\" or r._field == \"wifi_upload_mbps\" or r._field == \"wifi_latency_ms\" or r._field == \"wifi_jitter_ms\" or r._field == \"wifi_packet_loss_pct\" or r._field == \"wifi_interface\" or r._field == \"wifi_server_name\" or r._field == \"wifi_server_location\" or r._field == \"wifi_server_country\")\n  |> group(columns: [])\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"lan_interface\", \"lan_download_mbps\", \"lan_upload_mbps\", \"lan_latency_ms\", \"lan_server_name\", \"wifi_interface\", \"wifi_download_mbps\", \"wifi_upload_mbps\", \"wifi_latency_ms\", \"wifi_server_name\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 20)",
           "refId": "A"
         }
       ]
